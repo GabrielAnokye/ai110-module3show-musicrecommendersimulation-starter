@@ -2,16 +2,9 @@
 
 ## Project Summary
 
-In this project you will build and explain a small music recommender system.
+**VibeFinder 1.0** is a small, content-based music recommender written in Python. You give it a listener profile (favorite genre, favorite mood, target energy, and whether they like acoustic music), and it scores every song in an 18-song fictional catalog, ranks them, and prints the top five with an explanation of where each point came from.
 
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+There's no machine learning here. The score is a hand-weighted, deterministic rule (genre 4, mood 3, energy up to 3, acoustic fit up to 1), so every result can be traced back to the data. The project covers the design (Phases 1–2), implementation and tests (Phase 3), an evaluation with four test profiles and a weight experiment (Phase 4), and a [model card](model_card.md) and reflection (Phase 5).
 
 ---
 
@@ -86,7 +79,7 @@ Every song is scored against the user on four features. Before genre and mood ar
 - **Genre (4) sits just above mood (3).** Genre reflects long-term taste, and mood is more situational. The gap is only one point, so a song that matches the mood and fits the numbers very well can catch up with a song that only matches the genre (see the rock example below).
 - **Energy rewards closeness, not intensity.** For a target of 0.40, a 0.42 song earns 2.94 points and a 0.91 song earns 1.47. The closer song always scores higher. Energies and targets are both on a 0–1 scale, so the `max(0, …)` is only a safety guard.
 - **`likes_acoustic=False` means "prefers a produced sound," not "rejects acoustic songs."** It never subtracts points. A very acoustic song just earns close to 0 of the 1 available point. Profiles must state this field explicitly as a real `True` or `False`.
-- **Not in the baseline:** `valence`, `danceability`, and `tempo_bpm` are kept as Phase 4 experiments.
+- **Not in the baseline:** `valence`, `danceability`, and `tempo_bpm` stay in the data but aren't scored. Phase 4 didn't add them; they're left for possible future experiments.
 
 #### Why this weighting
 
@@ -98,7 +91,7 @@ I compared three weightings by hand against all 18 songs for both example profil
 | **B: chosen** | **4 / 3 / up to 3 / up to 1** | Focus Flow (7.78), Spacewalk Thoughts (6.56) | Gym Hero and Static Postcards, **tied at 6.86** |
 | C: mood-focused | 2 / 4 / up to 3 / up to 1 | Spacewalk Thoughts (7.56), Focus Flow (5.78) | Gym Hero (7.86), Static Postcards (4.86) |
 
-All three put the same two songs at the top for each profile: the two chill lofi tracks, and *Storm Runner* and *Breakwater*. They only disagree about whether a same-genre song with the wrong mood should beat a same-mood song from another genre. Strategy A never uses `likes_acoustic`, so one of the four profile fields would do nothing. C is the most open to cross-genre discovery, but it lets mood outweigh the listener's stated genre by two points. B uses every field, keeps genre slightly ahead, and still lets a strong cross-genre match compete, so it stays the baseline. C is a good Phase 4 experiment.
+All three put the same two songs at the top for each profile: the two chill lofi tracks, and *Storm Runner* and *Breakwater*. They only disagree about whether a same-genre song with the wrong mood should beat a same-mood song from another genre. Strategy A never uses `likes_acoustic`, so one of the four profile fields would do nothing. C is the most open to cross-genre discovery, but it lets mood outweigh the listener's stated genre by two points. B uses every field, keeps genre slightly ahead, and still lets a strong cross-genre match compete, so it stays the baseline. Phase 4 ended up testing a different change, halving genre and doubling energy (see [Experiments](#experiments-you-tried)).
 
 ### Ranking Rule
 
@@ -203,11 +196,15 @@ More detail on the Phase 1 research is in [docs/phase1_notes.md](docs/phase1_not
    .venv\Scripts\activate         # Windows
    ```
 
+   On macOS or Linux, use `python3` if `python` isn't found. Once the environment is active, `python` works.
+
 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
+
+The recommender itself only uses the Python standard library (tested with Python 3.12), and `pytest` is the only package the tests need. `requirements.txt` also lists `pandas` and `streamlit` from the starter template. This version doesn't use them, so `pip install pytest` is enough if you'd rather skip them.
 
 3. Run the app from the project root:
 
@@ -270,8 +267,6 @@ Top recommendations:
    Genre: hip-hop | Mood: confident | Score: 3.91
    Because: Genre hip-hop is not pop (+0.00); Mood confident is not happy (+0.00); Energy 0.80 vs target 0.80 (+3.00); Acousticness 0.09, you prefer less acoustic (+0.91)
 ```
-
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
 
 ---
 
@@ -539,14 +534,12 @@ More detail is in the [model card](model_card.md).
 
 ## Reflection
 
-Read and complete `model_card.md`:
+The full [**Model Card**](model_card.md) covers the data, algorithm, evaluation, and limitations. This is my personal reflection.
 
-[**Model Card**](model_card.md)
+My biggest learning moment was seeing that a ranking can be mathematically correct and still not be a good recommendation. For a happy-pop listener, Gym Hero ranks second even though its mood is *intense*. The math is right: a genre match is worth 4 points and a mood match only 3, so the pop label wins. But those weights were a choice, and the system just follows them. The adversarial profile showed it even more clearly. A listener asking for high-energy music got three quiet lofi songs at the top because the genre bonus outweighed energy.
 
-Write 1 to 2 paragraphs here about what you learned:
+I built this project with an AI coding assistant. It helped me understand collaborative versus content-based filtering, design the weighted score, generate the eight extra songs, write the CSV loading and recommendation functions, suggest edge cases and tests, and organize the experiments and documentation. Much of that still needed checking. The starter app had import and profile-field mismatches, and the starter tests passed even though the recommendation logic was just a placeholder, so passing tests alone didn't prove much. We compared scores with hand calculations from Phase 2, made sure the weight experiment restored the baseline weights, and checked results against real CLI output.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
+What surprised me is how personalized a simple formula can feel. Switching from a lofi/chill profile to a rock/intense one gives two top-five lists with no songs in common, with no machine learning involved. But a convincing list isn't an accurate prediction. Golden Hour Lagos beats Rooftop Lights for the pop fan only because it's slightly less acoustic.
 
-
-
+Next, I'd add support for multiple favorite genres or partial credit for related labels, like indie pop for a pop fan, while keeping every point explainable. A bigger catalog and real listener feedback would let me test whether the recommendations are actually good, not just whether the formula is consistent.

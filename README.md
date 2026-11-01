@@ -21,7 +21,7 @@ Replace this paragraph with your own summary of what your version does.
 
 Services like Spotify and YouTube combine many signals instead of relying on one formula. They look at **behavior** (what you play, skip, save, search for, share, or how long you watch), at **other users** (collaborative filtering: "people whose history looks like yours also liked this"), and at **the content itself** (genre, release date, audio characteristics). Spotify also mixes in human editors who pick a pool of candidate tracks that an algorithm then personalizes and orders for each listener.
 
-This project has no listening history and no other users. It has 18 songs with descriptive attributes (the starter's 10 plus 8 fictional songs I added to cover more genres and moods) and one user who says what they like. That makes **content-based filtering** the right fit: compare each song's attributes with the user's stated preferences. The recommender will be a deterministic, hand-weighted scoring rule rather than a trained model, so every score can be traced back to the exact features that produced it.
+This project has no listening history and no other users. It has 18 songs with descriptive attributes (the starter's 10 plus 8 fictional songs I added to cover more genres and moods) and one user who says what they like. That makes **content-based filtering** the right fit: compare each song's attributes with the user's stated preferences. The recommender is a deterministic, hand-weighted scoring rule rather than a trained model, so every score can be traced back to the exact features that produced it.
 
 ### What a `Song` stores
 
@@ -43,7 +43,7 @@ A user describes their taste explicitly. No history is needed:
 - `target_energy`: a number from 0 to 1 for how energetic they want the music to be
 - `likes_acoustic`: `True` or `False`
 
-These four names are also the exact keys the dictionary-based functions will expect, so a profile looks the same whether it's a `UserProfile` object or a plain dict.
+These four names are also the exact keys the dictionary-based functions expect, so a profile looks the same whether it's a `UserProfile` object or a plain dict.
 
 ### Example User Profiles
 
@@ -68,9 +68,9 @@ This profile should clearly separate a song like *Library Rain* (lofi, chill, en
 
 One limitation is that each profile has only *one* favorite genre and mood. A listener who likes both lofi and jazz, or who is happy with "relaxed" as well as "chill", can't express that yet.
 
-### Algorithm Recipe (finalized design, not yet implemented)
+### Algorithm Recipe
 
-> **Status:** this is the plan for Phase 3. `score_song`, `recommend_songs`, and `Recommender` are still starter stubs, so every number in this section was calculated by hand from `data/songs.csv`. None of it is program output.
+> **Status:** designed in Phase 2 and implemented in Phase 3 in [src/recommender.py](src/recommender.py). The weights are the module-level constants `GENRE_WEIGHT`, `MOOD_WEIGHT`, `ENERGY_WEIGHT`, and `ACOUSTIC_WEIGHT`. The worked numbers below were first calculated by hand and are now checked against `data/songs.csv` by the test suite.
 
 Every song is scored against the user on four features. Before genre and mood are compared, the text on both sides is normalized: trim the ends, collapse repeated spaces, and lowercase. That way `" Indie  Pop "` matches `"indie pop"`.
 
@@ -105,30 +105,32 @@ All three put the same two songs at the top for each profile: the two chill lofi
 1. Take one user profile and the full song catalog.
 2. Score every song on genre, mood, energy, and acoustic fit.
 3. Add the four parts into one relevance score.
-4. Keep a short reason for each part, e.g. `"genre match: lofi (+4.00)"`.
+4. Keep a short reason for each part, e.g. `"Genre match: lofi (+4.00)"` or `"Mood moody is not intense (+0.00)"`.
 5. Sort by score, highest first.
 6. When scores tie, put the lower `id` first.
 7. Return the top `k` songs (default 5) with their scores and reasons.
 
 Scoring and ranking are separate jobs. Scoring answers "how well does *this one* song fit?" and never looks at other songs. Ranking answers "which songs are best overall?" Because they're separate, the formula can be unit-tested on a single song, and the ranking can change later (for example, a limit on songs per artist) without touching the math.
 
-**Deterministic and reproducible.** There's no randomness, clock, or learned state, so the same CSV and profile always produce the same list. The planned sort key is `(-round(score, 6), id)`. The rounding is deliberate. Some songs tie exactly on paper (*Gym Hero* and *Static Postcards* both score 6.86 for the rock profile), and rounding makes sure that a tiny floating-point error never decides a tie that should go to the lower `id`.
+**Deterministic and reproducible.** There's no randomness, clock, or learned state, so the same CSV and profile always produce the same list. The sort key is `(-round(score, 6), id)`. The rounding is only used for sorting, and the returned score is the unrounded value. The rounding is deliberate. Some songs tie exactly on paper (*Gym Hero* and *Static Postcards* both score 6.86 for the rock profile), and rounding makes sure that a tiny floating-point error never decides a tie that should go to the lower `id`.
 
-**Edge cases (planned behavior for Phase 3):**
+**Edge cases (all covered by tests):**
 
-| Case | Planned behavior |
+| Case | Behavior |
 |---|---|
 | Empty catalog | Return `[]` |
 | `k = 0` | Return `[]` |
 | `k` larger than the catalog | Return every song, ranked |
 | Negative `k` | Raise `ValueError`, because Python slicing would quietly drop songs instead |
+| `k` that isn't an int (`"3"`, `2.0`, `True`) | Raise `TypeError` |
 | Missing profile field | Raise `ValueError` naming the missing key, with no silent defaults |
 | `target_energy` outside 0–1, or `likes_acoustic` not a real bool | Raise `ValueError`. The string `"False"` is truthy and would flip the preference. |
-| Non-numeric or out-of-range CSV value, duplicate `id` | `load_songs` raises `ValueError` with the row and column |
+| Missing column or value, non-numeric, NaN/infinite, or out-of-range CSV value, duplicate `id` | `load_songs` raises `ValueError` naming the file line and column |
+| Missing CSV file | `FileNotFoundError` naming the path |
 | Equal scores | Lower `id` first |
 | `"Lofi"`, `" lofi "`, `"LOFI"` | All match `"lofi"` after normalization |
 
-### Scoring example (hand-calculated, not program output)
+### Scoring example (hand-calculated in Phase 2, confirmed by tests)
 
 Lofi/chill profile: `favorite_genre="lofi"`, `favorite_mood="chill"`, `target_energy=0.40`, `likes_acoustic=True`.
 
@@ -165,7 +167,7 @@ flowchart TD
     TOPK --> OUT["Show ranked songs with scores and reasons"]
 ```
 
-### Planned code structure
+### Code structure
 
 | Piece | Responsibility |
 |---|---|
@@ -174,12 +176,12 @@ flowchart TD
 | `load_songs(path)` | Read the CSV, convert types, validate ranges and unique IDs, and return a list of dicts |
 | `score_song(user_prefs, song)` | **The only place the formula lives.** Returns `(score, reasons)` |
 | `recommend_songs(user_prefs, songs, k=5)` | Score every song, rank them, and return `(song, score, explanation)` tuples |
-| `Recommender.recommend(user, k=5)` | Object-oriented wrapper that converts the dataclasses with `asdict()`, calls `score_song`, and returns `Song` objects in ranked order |
+| `Recommender.recommend(user, k=5)` | Object-oriented wrapper that converts the dataclasses with `asdict()`, calls `recommend_songs`, and returns the original `Song` objects in ranked order |
 | `Recommender.explain_recommendation(user, song)` | Joins the `reasons` from `score_song`, so the explanation can't disagree with the score |
 
-The weights will be module-level constants. Text normalization and the sort-and-slice step will each be one small helper shared by both APIs. `UserProfile` field names are the canonical profile keys and `Song` field names are the CSV columns, so `asdict()` is the only bridge the object-oriented API needs. The existing tests should then pass for the right reason: their pop/happy test song scores 10.8, compared with 1.9 for the lofi one.
+The weights are module-level constants, and text normalization lives in one helper, `normalize_label`. `UserProfile` field names are the canonical profile keys and `Song` field names are the CSV columns, so `asdict()` is the only bridge the object-oriented API needs. The starter tests now pass for the right reason: their pop/happy test song scores 10.8, compared with 1.9 for the lofi one.
 
-`src/main.py` needs three fixes in Phase 3. It should import with `from src.recommender import ...` so `python -m src.main` works, switch its example profile to the canonical keys (`favorite_genre`, `favorite_mood`, `target_energy`), and add `likes_acoustic`.
+`src/main.py` imports with `from src.recommender import ...`, finds `data/songs.csv` relative to its own file, and uses the canonical profile keys, including `likes_acoustic`.
 
 ### Expected biases and limitations
 
@@ -199,6 +201,7 @@ More detail on the Phase 1 research is in [docs/phase1_notes.md](docs/phase1_not
    python -m venv .venv
    source .venv/bin/activate      # Mac or Linux
    .venv\Scripts\activate         # Windows
+   ```
 
 2. Install dependencies
 
@@ -206,7 +209,7 @@ More detail on the Phase 1 research is in [docs/phase1_notes.md](docs/phase1_not
 pip install -r requirements.txt
 ```
 
-3. Run the app:
+3. Run the app from the project root:
 
 ```bash
 python -m src.main
@@ -214,27 +217,51 @@ python -m src.main
 
 ### Running Tests
 
-Run the starter tests with:
+Run the tests from the project root with either command. `pytest.ini` puts the project root on the import path, so both work:
 
 ```bash
 pytest
+python -m pytest
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+The tests live in `tests/test_recommender.py`. They cover CSV loading and validation, each scoring component, the Phase 2 worked examples, ranking and tie-breaks, `k` edge cases, and consistency between the functional and object-oriented APIs.
 
 ---
 
 ## Sample Recommendation Output
 
-Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
+Actual output of `python -m src.main` for the default pop/happy profile (copied from the terminal, unedited):
 
-```
-# e.g.:
-# User profile: genre=indie, mood=chill, energy=low
-# Recommendations:
-#   1. ...
-#   2. ...
-#   3. ...
+```text
+Loaded songs: 18
+
+User preferences:
+  favorite_genre: pop
+  favorite_mood: happy
+  target_energy: 0.8
+  likes_acoustic: False
+
+Top recommendations:
+
+1. Sunrise City by Neon Echo
+   Genre: pop | Mood: happy | Score: 10.76
+   Because: Genre match: pop (+4.00); Mood match: happy (+3.00); Energy 0.82 vs target 0.80 (+2.94); Acousticness 0.18, you prefer less acoustic (+0.82)
+
+2. Gym Hero by Max Pulse
+   Genre: pop | Mood: intense | Score: 7.56
+   Because: Genre match: pop (+4.00); Mood intense is not happy (+0.00); Energy 0.93 vs target 0.80 (+2.61); Acousticness 0.05, you prefer less acoustic (+0.95)
+
+3. Golden Hour Lagos by Kemi Sol
+   Genre: afrobeats | Mood: happy | Score: 6.70
+   Because: Genre afrobeats is not pop (+0.00); Mood match: happy (+3.00); Energy 0.76 vs target 0.80 (+2.88); Acousticness 0.18, you prefer less acoustic (+0.82)
+
+4. Rooftop Lights by Indigo Parade
+   Genre: indie pop | Mood: happy | Score: 6.53
+   Because: Genre indie pop is not pop (+0.00); Mood match: happy (+3.00); Energy 0.76 vs target 0.80 (+2.88); Acousticness 0.35, you prefer less acoustic (+0.65)
+
+5. Concrete Crown by Verse Theory
+   Genre: hip-hop | Mood: confident | Score: 3.91
+   Because: Genre hip-hop is not pop (+0.00); Mood confident is not happy (+0.00); Energy 0.80 vs target 0.80 (+3.00); Acousticness 0.09, you prefer less acoustic (+0.91)
 ```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->

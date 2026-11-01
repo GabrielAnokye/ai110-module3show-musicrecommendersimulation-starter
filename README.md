@@ -215,6 +215,13 @@ pip install -r requirements.txt
 python -m src.main
 ```
 
+To see all four Phase 4 evaluation profiles, or to rerun the weight experiment:
+
+```bash
+python -m src.main --all-profiles
+python -m experiments.weight_experiment
+```
+
 ### Running Tests
 
 Run the tests from the project root with either command. `pytest.ini` puts the project root on the import path, so both work:
@@ -224,7 +231,7 @@ pytest
 python -m pytest
 ```
 
-The tests live in `tests/test_recommender.py`. They cover CSV loading and validation, each scoring component, the Phase 2 worked examples, ranking and tie-breaks, `k` edge cases, and consistency between the functional and object-oriented APIs.
+The tests live in `tests/test_recommender.py`. They cover CSV loading and validation, each scoring component, the Phase 2 worked examples, ranking and tie-breaks, `k` edge cases, and consistency between the functional and object-oriented APIs. `tests/test_main.py` covers the `--all-profiles` CLI option and checks that the weight experiment's temporary overrides reach `score_song` and are always restored.
 
 ---
 
@@ -270,25 +277,263 @@ Top recommendations:
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
+Phase 4 evaluates the baseline (4/3/3/1) recommender with four hypothetical profiles and runs one controlled weight experiment. No real listeners were involved, so these results show what the formula *does*, not whether anyone would actually like the songs.
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+### Profiles Tested
+
+| Profile | Genre | Mood | Target energy | Likes acoustic | Why it's here |
+|---|---|---|---|---|---|
+| High-Energy Pop (default) | pop | happy | 0.80 | False | Mainstream case; only 2 pop songs in the catalog |
+| Chill Lofi | lofi | chill | 0.40 | True | Quiet, acoustic end of the catalog |
+| Intense Rock | rock | intense | 0.90 | False | Loud, produced end of the catalog |
+| Adversarial Listener | lofi | sad | 0.90 | False | Conflicting: no lofi or sad song is above energy 0.42 |
+
+Run them all with `python -m src.main --all-profiles`. `python -m src.main` alone still shows only the default profile, and its output hasn't changed.
+
+### Baseline Recommendation Output
+
+Actual output of `python -m src.main --all-profiles`, split by profile (copied from the terminal, unedited). The High-Energy Pop block matches the [Sample Recommendation Output](#sample-recommendation-output) above.
+
+```text
+======================================================================
+Profile: High-Energy Pop
+======================================================================
+
+User preferences:
+  favorite_genre: pop
+  favorite_mood: happy
+  target_energy: 0.8
+  likes_acoustic: False
+
+Top recommendations:
+
+1. Sunrise City by Neon Echo
+   Genre: pop | Mood: happy | Score: 10.76
+   Because: Genre match: pop (+4.00); Mood match: happy (+3.00); Energy 0.82 vs target 0.80 (+2.94); Acousticness 0.18, you prefer less acoustic (+0.82)
+
+2. Gym Hero by Max Pulse
+   Genre: pop | Mood: intense | Score: 7.56
+   Because: Genre match: pop (+4.00); Mood intense is not happy (+0.00); Energy 0.93 vs target 0.80 (+2.61); Acousticness 0.05, you prefer less acoustic (+0.95)
+
+3. Golden Hour Lagos by Kemi Sol
+   Genre: afrobeats | Mood: happy | Score: 6.70
+   Because: Genre afrobeats is not pop (+0.00); Mood match: happy (+3.00); Energy 0.76 vs target 0.80 (+2.88); Acousticness 0.18, you prefer less acoustic (+0.82)
+
+4. Rooftop Lights by Indigo Parade
+   Genre: indie pop | Mood: happy | Score: 6.53
+   Because: Genre indie pop is not pop (+0.00); Mood match: happy (+3.00); Energy 0.76 vs target 0.80 (+2.88); Acousticness 0.35, you prefer less acoustic (+0.65)
+
+5. Concrete Crown by Verse Theory
+   Genre: hip-hop | Mood: confident | Score: 3.91
+   Because: Genre hip-hop is not pop (+0.00); Mood confident is not happy (+0.00); Energy 0.80 vs target 0.80 (+3.00); Acousticness 0.09, you prefer less acoustic (+0.91)
+```
+
+```text
+======================================================================
+Profile: Chill Lofi
+======================================================================
+
+User preferences:
+  favorite_genre: lofi
+  favorite_mood: chill
+  target_energy: 0.4
+  likes_acoustic: True
+
+Top recommendations:
+
+1. Library Rain by Paper Lanterns
+   Genre: lofi | Mood: chill | Score: 10.71
+   Because: Genre match: lofi (+4.00); Mood match: chill (+3.00); Energy 0.35 vs target 0.40 (+2.85); Acousticness 0.86, you like acoustic (+0.86)
+
+2. Midnight Coding by LoRoom
+   Genre: lofi | Mood: chill | Score: 10.65
+   Because: Genre match: lofi (+4.00); Mood match: chill (+3.00); Energy 0.42 vs target 0.40 (+2.94); Acousticness 0.71, you like acoustic (+0.71)
+
+3. Focus Flow by LoRoom
+   Genre: lofi | Mood: focused | Score: 7.78
+   Because: Genre match: lofi (+4.00); Mood focused is not chill (+0.00); Energy 0.40 vs target 0.40 (+3.00); Acousticness 0.78, you like acoustic (+0.78)
+
+4. Spacewalk Thoughts by Orbit Bloom
+   Genre: ambient | Mood: chill | Score: 6.56
+   Because: Genre ambient is not lofi (+0.00); Mood match: chill (+3.00); Energy 0.28 vs target 0.40 (+2.64); Acousticness 0.92, you like acoustic (+0.92)
+
+5. Coffee Shop Stories by Slow Stereo
+   Genre: jazz | Mood: relaxed | Score: 3.80
+   Because: Genre jazz is not lofi (+0.00); Mood relaxed is not chill (+0.00); Energy 0.37 vs target 0.40 (+2.91); Acousticness 0.89, you like acoustic (+0.89)
+```
+
+```text
+======================================================================
+Profile: Intense Rock
+======================================================================
+
+User preferences:
+  favorite_genre: rock
+  favorite_mood: intense
+  target_energy: 0.9
+  likes_acoustic: False
+
+Top recommendations:
+
+1. Storm Runner by Voltline
+   Genre: rock | Mood: intense | Score: 10.87
+   Because: Genre match: rock (+4.00); Mood match: intense (+3.00); Energy 0.91 vs target 0.90 (+2.97); Acousticness 0.10, you prefer less acoustic (+0.90)
+
+2. Breakwater by Redline Arcade
+   Genre: rock | Mood: intense | Score: 10.84
+   Because: Genre match: rock (+4.00); Mood match: intense (+3.00); Energy 0.87 vs target 0.90 (+2.91); Acousticness 0.07, you prefer less acoustic (+0.93)
+
+3. Gym Hero by Max Pulse
+   Genre: pop | Mood: intense | Score: 6.86
+   Because: Genre pop is not rock (+0.00); Mood match: intense (+3.00); Energy 0.93 vs target 0.90 (+2.91); Acousticness 0.05, you prefer less acoustic (+0.95)
+
+4. Static Postcards by Hollow Pines
+   Genre: rock | Mood: moody | Score: 6.86
+   Because: Genre match: rock (+4.00); Mood moody is not intense (+0.00); Energy 0.62 vs target 0.90 (+2.16); Acousticness 0.30, you prefer less acoustic (+0.70)
+
+5. Concrete Crown by Verse Theory
+   Genre: hip-hop | Mood: confident | Score: 3.61
+   Because: Genre hip-hop is not rock (+0.00); Mood confident is not intense (+0.00); Energy 0.80 vs target 0.90 (+2.70); Acousticness 0.09, you prefer less acoustic (+0.91)
+```
+
+```text
+======================================================================
+Profile: Adversarial Listener
+======================================================================
+
+User preferences:
+  favorite_genre: lofi
+  favorite_mood: sad
+  target_energy: 0.9
+  likes_acoustic: False
+
+Top recommendations:
+
+1. Midnight Coding by LoRoom
+   Genre: lofi | Mood: chill | Score: 5.85
+   Because: Genre match: lofi (+4.00); Mood chill is not sad (+0.00); Energy 0.42 vs target 0.90 (+1.56); Acousticness 0.71, you prefer less acoustic (+0.29)
+
+2. Focus Flow by LoRoom
+   Genre: lofi | Mood: focused | Score: 5.72
+   Because: Genre match: lofi (+4.00); Mood focused is not sad (+0.00); Energy 0.40 vs target 0.90 (+1.50); Acousticness 0.78, you prefer less acoustic (+0.22)
+
+3. Library Rain by Paper Lanterns
+   Genre: lofi | Mood: chill | Score: 5.49
+   Because: Genre match: lofi (+4.00); Mood chill is not sad (+0.00); Energy 0.35 vs target 0.90 (+1.35); Acousticness 0.86, you prefer less acoustic (+0.14)
+
+4. Paper Boats by Willow & Ash
+   Genre: folk | Mood: sad | Score: 4.17
+   Because: Genre folk is not lofi (+0.00); Mood match: sad (+3.00); Energy 0.27 vs target 0.90 (+1.11); Acousticness 0.94, you prefer less acoustic (+0.06)
+
+5. Storm Runner by Voltline
+   Genre: rock | Mood: intense | Score: 3.87
+   Because: Genre rock is not lofi (+0.00); Mood intense is not sad (+0.00); Energy 0.91 vs target 0.90 (+2.97); Acousticness 0.10, you prefer less acoustic (+0.90)
+```
+
+All four profiles return five songs with scores in descending order, and every explanation adds up to its score. The top-five lists overlap very little:
+
+| Pair | Top songs | Shared in top 5 | Key difference and why |
+|---|---|---|---|
+| Pop vs Lofi | Sunrise City / Library Rain | 0 | Opposite energy targets (0.80 vs 0.40) and acoustic preferences. Because energy and acousticness are strongly correlated in this catalog, the two lists come from opposite ends of it. |
+| Pop vs Rock | Sunrise City / Storm Runner | 2 (Gym Hero, Concrete Crown) | Gym Hero is #2 for pop (genre match) and #3 for rock (mood match), so it earns points from a different label in each profile. |
+| Pop vs Adversarial | Sunrise City / Midnight Coding | 0 | Both target high energy, but the adversarial genre bonus (lofi, +4) pulls three low-energy songs to the top. |
+| Lofi vs Rock | Library Rain / Storm Runner | 0 | They differ on every field, so the lists don't overlap. |
+| Lofi vs Adversarial | Library Rain / Midnight Coding | 3 (all three lofi songs) | Same genre, so the same three songs rank highest. Library Rain drops from #1 to #3 because a 0.90 target and `likes_acoustic=False` penalize its low energy (0.35) and high acousticness (0.86) more than Midnight Coding's (0.42, 0.71). |
+| Rock vs Adversarial | Storm Runner / Midnight Coding | 1 (Storm Runner) | Storm Runner has the best energy fit for both. It's #1 for rock but only #5 for the adversarial profile, because without a label match it can score at most 4. |
+
+### Interesting Results
+
+Each total below is genre + mood + energy (`3 × (1 − |energy − target|)`) + acoustic fit, using the values in `data/songs.csv`.
+
+| Profile | Song (rank) | Genre | Mood | Energy | Acoustic | Total |
+|---|---|---|---|---|---|---|
+| Pop | Gym Hero (#2): pop, intense, energy 0.93, acousticness 0.05 | 4 | 0 | 3 × 0.87 = 2.61 | 0.95 | **7.56** |
+| Pop | Golden Hour Lagos (#3): afrobeats, happy, energy 0.76, acousticness 0.18 | 0 | 3 | 3 × 0.96 = 2.88 | 0.82 | **6.70** |
+| Pop | Concrete Crown (#5): hip-hop, confident, energy 0.80, acousticness 0.09 | 0 | 0 | 3 × 1.00 = 3.00 | 0.91 | **3.91** |
+| Rock | Gym Hero (#3): pop, intense, energy 0.93, acousticness 0.05 | 0 | 3 | 3 × 0.97 = 2.91 | 0.95 | **6.86** |
+| Rock | Static Postcards (#4): rock, moody, energy 0.62, acousticness 0.30 | 4 | 0 | 3 × 0.72 = 2.16 | 0.70 | **6.86** |
+| Adversarial | Midnight Coding (#1): lofi, chill, energy 0.42, acousticness 0.71 | 4 | 0 | 3 × 0.52 = 1.56 | 0.29 | **5.85** |
+| Adversarial | Storm Runner (#5): rock, intense, energy 0.91, acousticness 0.10 | 0 | 0 | 3 × 0.99 = 2.97 | 0.90 | **3.87** |
+
+1. **A mood mismatch still ranks #2 for pop.** Gym Hero is labeled *intense*, not *happy*, but the pop genre bonus (+4) beats Golden Hour Lagos's happy mood bonus (+3). Gym Hero's slightly worse energy fit (−0.27) doesn't close that gap, and its lower acousticness actually earns it 0.13 more. The result follows directly from the rule that genre is worth one point more than mood. Whether a happy-pop listener wants an intense workout track at #2 is a subjective question the formula can't answer.
+2. **A pop song ties a rock song for the rock listener.** Gym Hero (mood match, near-perfect energy) and Static Postcards (genre match, energy 0.28 too low) both score exactly 6.86. Gym Hero is placed first only because its `id` (5) is lower than 17. The tie-break is deterministic but has no musical meaning. An intense pop track arguably fits "intense rock" better than a moody mid-tempo rock song, but that's a judgment call.
+3. **The adversarial listener gets the opposite of the energy they asked for.** All three lofi songs fill the top three with energy 0.35–0.42 against a 0.90 target, scoring 5.49–5.85 of 11. Storm Runner fits the energy almost exactly, but without a label match it can score at most 4, so it only reaches #5. The genre weight wins, and the scores (about half the maximum) still produce a confident-looking list even though no song fits well overall.
+4. **Concrete Crown makes the pop top five with no label match.** It earns 3.00 from a perfect energy match and 0.91 from low acousticness. That makes it the best of the 14 songs that match neither label, but it's still only 0.19 ahead of Breakwater (3.72). The fifth slot is filler.
+5. **Smaller observations.** Golden Hour Lagos (6.70) beats Rooftop Lights (6.53) only on acousticness (0.18 vs 0.35), because both have energy 0.76 and the happy mood. Rooftop Lights is *indie pop* but gets 0 genre points for a pop fan because labels must match exactly. For Chill Lofi, Library Rain beats Midnight Coding because its acoustic edge (+0.15) is larger than its energy deficit (−0.09).
+
+I think Gym Hero ranking second for a happy pop listener is surprising because intense music isn't necessarily happy music. Similarly, the adversarial profile shows that the recommender can prioritize matching genres even when songs have very different energy levels from what the user requested. This helped me understand that a mathematically correct recommendation isn't always a good recommendation.
+
+Two extra edge-case profiles (valid input, unusual preferences) were run with the baseline only:
+
+- **Energetic Acoustic Folk** (`folk`, `happy`, 0.85, `likes_acoustic=True`) tests the energy–acousticness correlation. The #1 song is Paper Boats (folk, sad, energy 0.27, 6.20). It only edges out Sunrise City (pop, happy, energy 0.82, 6.09) on the genre bonus. No song in the catalog is both energetic and acoustic.
+- **Genre not in the catalog** (`metal`, `intense`, 0.95, `likes_acoustic=False`) tests what happens when the genre bonus is unreachable. Three intense songs score about 6.7–6.9, and then #4–#5 drop to 3.46 and 3.43. Nothing tells the user that "metal" doesn't exist in the catalog.
+
+### Weight Experiment
+
+| Weight | Baseline | Experiment |
+|---|---|---|
+| Genre | 4.0 | **2.0** |
+| Mood | 3.0 | 3.0 |
+| Energy | up to 3.0 | **up to 6.0** |
+| Acoustic | up to 1.0 | 1.0 |
+| Max score | 11.0 | 12.0 |
+
+`python -m experiments.weight_experiment` applies the experimental weights temporarily with `unittest.mock.patch.multiple` and calls the real `score_song` / `recommend_songs`. It checks that the patch actually changes a score (Sunrise City for pop: 10.76 → 11.70) and that 4/3/3/1 is restored afterwards. The dataset, profiles, k = 5, and tie-breaking stay the same. Scores aren't compared directly because the maximum changed from 11 to 12. Only the rankings are compared.
+
+| Profile | Baseline top 5 | Experimental top 5 | Kept | #1 changed? |
+|---|---|---|---|---|
+| High-Energy Pop | Sunrise City, Gym Hero, Golden Hour Lagos, Rooftop Lights, Concrete Crown | Sunrise City, **Golden Hour Lagos, Rooftop Lights**, Gym Hero, Concrete Crown | 5/5 | No |
+| Chill Lofi | Library Rain, Midnight Coding, Focus Flow, Spacewalk Thoughts, Coffee Shop Stories | **Midnight Coding**, Library Rain, **Spacewalk Thoughts**, Focus Flow, Coffee Shop Stories | 5/5 | Yes |
+| Intense Rock | Storm Runner, Breakwater, Gym Hero, Static Postcards, Concrete Crown | Storm Runner, Breakwater, Gym Hero, Static Postcards, **Sunrise City** | 4/5 | No |
+| Adversarial | Midnight Coding, Focus Flow, Library Rain, Paper Boats, Storm Runner | **Storm Runner, Gym Hero, Breakwater, Sunrise City, Concrete Crown** | 1/5 | Yes |
+
+Concrete examples of movement:
+
+- **Gym Hero, pop profile, #2 → #4.** 4 + 0 + 2.61 + 0.95 = 7.56 becomes 2 + 0 + 5.22 + 0.95 = 8.17. Golden Hour Lagos goes from 0 + 3 + 2.88 + 0.82 = 6.70 to 0 + 3 + 5.76 + 0.82 = 9.58. Once genre (2) is worth less than mood (3), the happy songs pass the intense one.
+- **Spacewalk Thoughts passes Focus Flow, lofi profile.** Focus Flow goes from 4 + 0 + 3.00 + 0.78 = 7.78 to 2 + 0 + 6.00 + 0.78 = 8.78. Spacewalk goes from 0 + 3 + 2.64 + 0.92 = 6.56 to 0 + 3 + 5.28 + 0.92 = 9.20. An ambient song now outranks a lofi song.
+- **Midnight Coding passes Library Rain for #1.** Library Rain's energy deficit doubles from 0.09 to 0.18 and is now larger than its fixed +0.15 acoustic edge (11.59 vs 11.56).
+- **Sunrise City replaces Concrete Crown at rock #5.** Sunrise's energy gap is 0.08 and Concrete's is 0.10. That 0.02 difference is worth 0.06 at baseline (3.58 vs 3.61, Concrete wins on its +0.09 acoustic edge) but 0.12 in the experiment (6.34 vs 6.31, Sunrise wins).
+- **Adversarial: the whole list turns over.** Storm Runner goes from #5 to #1 (0 + 0 + 2.97 + 0.90 = 3.87 becomes 5.94 + 0.90 = 6.84). Midnight Coding goes from #1 to #9 (4 + 0 + 1.56 + 0.29 = 5.85 becomes 2 + 0 + 3.12 + 0.29 = 5.41). The new top five has no lofi and no sad song.
+
+Measured effects:
+
+| Profile | Cross-genre songs in top 5 (base → exp) | Mean distance from target energy (base → exp) |
+|---|---|---|
+| Pop | 3 → 3 | 0.046 → 0.046 |
+| Lofi | 2 → 2 | 0.044 → 0.044 |
+| Rock | 2 → 2 | 0.090 → 0.086 |
+| Adversarial | 2 → 5 | 0.434 → 0.050 |
+
+For three of the four profiles, the experiment only **reorders** songs that were already in the top five. Cross-genre songs move *up* (Golden Hour Lagos, Rooftop Lights, Spacewalk Thoughts), but no new genres enter. Energy alignment barely changes, because for these profiles the preferred genre already has the right energy. The weights matter a lot only when genre and energy **disagree** (the adversarial profile). Across all four profiles, catalog coverage actually drops from 14 to 13 distinct songs: the adversarial list collapses onto the same high-energy songs the pop and rock lists already show, and Paper Boats disappears.
+
+### Experiment Conclusion
+
+Halving genre and doubling energy did what the math predicts. When genre and energy agree, the experimental weights change only the order. When they conflict, energy now dominates: a song matching neither label can score up to 7 of 12, compared with 4 of 11 at baseline. That makes the system more responsive to energy but not clearly more *relevant*. The pop list arguably improves (happy songs above an intense one), the lofi list is a toss-up, and the adversarial list swaps "right genre, wrong energy" for "right energy, wrong genre *and* mood." Neither of those is a good answer, because the catalog has no energetic sad lofi song. Several distinctions matter here. All 58 tests pass, so the code is technically correct, but that says nothing about personal relevance, which needs real listener feedback that this project doesn't have. Diversity (more genres in one list) went up only for the adversarial profile, and catalog coverage (how many songs ever get recommended) went down. The **4/3/3/1 baseline stays**. It treats the stated genre as the strongest signal, it's what the tests and earlier hand calculations verify, and the experiment didn't show a clear improvement. A future version should handle conflicting or weak matches differently: flag lists whose best score is low, or give partial credit for related genres, rather than just moving weight from genre to energy.
 
 ---
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+Findings from the Phase 4 evaluation, grouped by where the evidence comes from.
 
-Examples:
+**Seen in the actual dataset (18 songs)**
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+- **Uneven genre coverage.** Lofi and rock have 3 songs each, pop has 2, and the other 10 genres have 1 each. A rock fan's top five is therefore 3 rock songs plus fillers: all three rock songs fill places 1, 2 and 4, Gym Hero sits at #3, and slot #5 goes to hip-hop at 3.61. A folk or reggae fan can get only one genre match.
+- **Energy and acousticness move together.** Across the 18 songs, the correlation is r = −0.96. All seven songs with acousticness ≥ 0.5 have energy ≤ 0.42. The "Energetic Acoustic Folk" test profile gets a sad, 0.27-energy folk song at #1 because nothing energetic and acoustic exists. For low-energy acoustic listeners, the two features largely double-count the same signal.
+- **The labels are one person's judgment.** Every genre and mood was hand-assigned, so "chill" versus "relaxed" or "pop" versus "indie pop" reflects that person's choices.
 
-You will go deeper on this in your model card.
+**Built into the scoring design**
+
+- **Exact labels dominate.** 7 of the 11 points go to exact genre and mood matches. Rooftop Lights (*indie pop*) gets 0 genre points from a pop fan, and Coffee Shop Stories (*relaxed*) gets 0 mood points from a chill fan. This *tends* to keep listeners in familiar categories. The simulator has no feedback loop, though, so it can't produce a long-term filter bubble on its own.
+- **One genre, one mood, one energy.** A profile can't express several favorite genres, different contexts (gym vs. study), a wish for novelty, or taste that changes during the day.
+- **Always returns k songs.** The adversarial profile's best match scores 5.85 of 11, and the pop list's #5 gets in with no label match at all (3.91). There's no minimum relevance threshold, and nothing like "the catalog has no good match for you."
+- **Arbitrary tie-breaks.** Gym Hero ties Static Postcards at 6.86 for the rock listener, and the lower `id` decides the order.
+
+**Would need real usage data to show**
+
+- Whether these rankings are actually *relevant* to people, whether some groups of listeners are consistently served worse, and whether repeated use narrows what people hear. With no listeners, no feedback, and no ground-truth ratings, these remain open risks rather than demonstrated harms.
+
+More detail is in the [model card](model_card.md).
 
 ---
 

@@ -55,6 +55,12 @@ The four parts are added up, the songs are sorted from highest to lowest score, 
 
 **Changes from the starter:** the starter's recommendation functions were placeholders, and its runner script used profile keys and an import path that didn't match the rest of the code. This version implements CSV loading with validation, the scoring rule, ranking with a fixed tie-break, and explanations, and it fixes the runner so it uses the real profile fields.
 
+**Optional ranking modes (bonus extension):** besides the baseline described above, two optional modes use the same formula with different weights. *Mood-first* uses genre 2, mood 4, energy up to 3, and acoustic up to 1. *Energy-focused* uses genre 2, mood 3, energy up to 6, and acoustic up to 1. The baseline is still the default, and everything else in this model card (data, strengths, limitations, and evaluation) describes the **baseline** mode only. The alternative modes change what the system prioritizes, but they haven't been shown to give better recommendations (see the README's [Ranking Modes](README.md#optional-extensions--ranking-modes) section).
+
+**Optional diversity-aware reranking (bonus extension):** with `--diverse`, the top five are chosen one at a time. A song loses 1.5 points for each song of the same genre already picked, and 2 points if its artist was already picked. The adjusted score only decides the order; each song's real relevance score is still shown next to it. This can make a list less repetitive. With the baseline weights, it raised the number of different genres from 3 to 4 for Chill Lofi and the Adversarial Listener, and replaced a second LoRoom song in both lists. It didn't change the Intense Rock list at all, and it only reordered High-Energy Pop. The extra variety came at a cost: Chill Lofi lost Focus Flow (relevance 7.78) and gained Paper Boats (3.55), a sad folk song that matches neither the listener's genre nor mood. So the feature didn't clearly *improve* the test profiles; it traded relevance for variety. More variety is also not the same as fairness. The penalties only look at the five songs on screen, not at which genres, artists, or cultures the catalog represents or which listeners are served well. The system still has no feedback loop to show whether it reduces a filter bubble over time, and the 1.5 and 2.0 penalties are untested design choices. The feature is off by default, and everything else in this card describes the system without it.
+
+**Optional advanced scoring (bonus extension):** with `--advanced`, up to 3 extra points are added on top of the chosen mode's score. These points come from five extra song attributes (see §4): 0.5 for closeness to a target popularity, 0.5 for matching a preferred release decade, 0.5 each for closeness in instrumentalness and vocal intensity, and up to 1.0 for the share of the listener's preferred mood tags the song has. The maximum becomes 14 with the baseline weights (13 for mood-first, 15 for energy-focused). The original four-part score isn't changed, just added to. Advanced scoring only runs when it's explicitly requested and every song and preference has the needed data; missing data raises an error instead of being treated as zero. It's an educational demonstration of adding features to a content-based score. In the test profiles, it swapped #2 and #3 for High-Energy Pop and #1 and #2 for Intense Rock. For the Adversarial Listener, it replaced Storm Runner with a 0.14-energy classical song. Because the features and preferences are invented, these changes show the formula's *sensitivity* to new attributes, not better recommendations. The rest of this card describes the basic score.
+
 ---
 
 ## 4. Data  
@@ -68,6 +74,15 @@ Each song has an ID, title, artist, genre, mood, energy, tempo (BPM), valence, d
 - **Ranges:** energy 0.14–0.93, acousticness 0.05–0.98, tempo 60–152 BPM
 
 The score uses only **genre, mood, energy, and acousticness**. Tempo, valence, and danceability are kept in the file but don't affect the ranking.
+
+**Expanded dataset (bonus extension):** five more columns were added to all 18 songs, without changing any original value:
+
+- `popularity` (whole number, 0–100)
+- `release_decade` (1990s–2020s in this catalog)
+- `instrumentalness` and `vocal_intensity` (0–1)
+- `mood_tags` (one to three tags from a fixed list of nine, such as *nostalgic*, *uplifting*, or *melancholic*)
+
+They're used only by optional advanced scoring. Like everything else in the catalog, they're **synthetic**: the values were chosen with AI help to fit each fictional song's genre, mood, and energy. They are not real popularity figures or release dates. Using real ones would bring its own problems. Popularity rewards music that's already popular, release dates can favor recent music, and both reflect the habits of the platform that measured them. The tags also partly repeat the existing mood labels.
 
 **Limits of the data:**
 
@@ -130,7 +145,7 @@ The README's [Limitations and Risks](README.md#limitations-and-risks) section ha
 2. **More flexible preferences and matching.** Let listeners name several favorite genres and moods, and give partial credit for related labels. For example, *indie pop* could earn some genre points for a pop fan. Real user feedback (likes and skips) could later adjust the weights.
 3. **Better discovery and relevance controls.** Add a minimum score so that weak matches aren't shown as if they were good ones, rerank the list to keep it from being too repetitive, or occasionally include an exploration pick. That would stop the system from always returning five suggestions even when the fifth one (like Concrete Crown at 3.91 for the pop fan) matches no label at all.
 
-None of these are implemented. They're ideas for a future version.
+These were written as ideas for a future version. Since then, one part of idea 3 has been added as an optional bonus feature: reranking to reduce repetition (see §3). The minimum-score threshold, exploration picks, and ideas 1–2 are still not implemented.
 
 ---
 

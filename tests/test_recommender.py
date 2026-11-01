@@ -147,10 +147,14 @@ def test_load_songs_converts_types(catalog):
         assert isinstance(song[col], float)
     for col in ["title", "artist", "genre", "mood"]:
         assert isinstance(song[col], str)
-    assert song == {
+    # Bonus challenge 1 added five advanced columns; the original ten values are unchanged.
+    assert {col: song[col] for col in REQUIRED_COLUMNS} == {
         "id": 1, "title": "Sunrise City", "artist": "Neon Echo", "genre": "pop",
         "mood": "happy", "energy": 0.82, "tempo_bpm": 118.0, "valence": 0.84,
         "danceability": 0.79, "acousticness": 0.18,
+    }
+    assert set(song) == set(REQUIRED_COLUMNS) | {
+        "popularity", "release_decade", "instrumentalness", "vocal_intensity", "mood_tags",
     }
 
 
